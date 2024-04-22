@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VCF to FASTA converter</title>
+  </head>
+  <body>
+    <div class="container py-3">
+      <h1>VCF to FASTA converter</h1>
+      <form id="vcfForm">
+        <div class="mb-3">
+          <label for="vcfInput" class="form-label">VCF input file</label>
+          <input class="form-control" type="file" id="vcfInput" accept=".vcf" required>
+        </div>
+        <div class="mb-3">
+          <label for="namesInput" class="form-label">Sample names</label>
+          <input class="form-control" id="namesInput" required>
+        </div>
+        <div class="progress" role="progressbar">
+          <div id="progressBar" class="progress-bar progress-bar-striped bg-success" style="width: 0%"></div>
+        </div>
+        <div class="text-danger mb-3" id="errorText"></div>
+        <button id="startButton" class="btn btn-primary">Start</button>
+      </form>
+    </div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

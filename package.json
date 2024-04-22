@@ -1,0 +1,17 @@
+{
+  "name": "vcf-to-fasta",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build /vcf-to-fasta/",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.3"
+  }
+}
