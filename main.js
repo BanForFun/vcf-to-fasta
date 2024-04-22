@@ -14,19 +14,19 @@ vcfForm.addEventListener('submit', e => {
 
     const sampleNames = namesInput.value.split(/\s/);
     const [vcfFile] = vcfInput.files;
-    const stream = vcfFile.stream();
+    const reader = vcfFile.stream().getReader();
 
-    const abortController = new AbortController();
-    startButton.addEventListener('click', e => {
+    startButton.addEventListener('click', async e => {
         e.preventDefault();
-        abortController.abort(new Error('Canceled by user'));
+        await reader.cancel();
     }, { once: true });
 
-    convert(stream, vcfFile.size, sampleNames, abortController.signal)
+    convert(reader, vcfFile.size, sampleNames)
         .then(blob => {
             downloadBlob(blob, "output.fasta");
         })
         .catch(err => {
+            console.error(err);
             errorText.innerText = err.message;
         })
         .finally(() => {
@@ -39,11 +39,11 @@ function getReplacement(location, reference, alternates) {
     return location === "0" ? reference : alternates[location - 1];
 }
 
-async function convert(stream, totalSize, sampleNames, abortSignal) {
-    function handleProgress(readSize) {
+async function convert(stream, totalSize, sampleNames) {
+    function handleProgress(percentage) {
         return new Promise(res => {
             requestAnimationFrame(() => {
-                progressBar.style.width = `${readSize / totalSize * 100}%`;
+                progressBar.style.width = `${percentage * 100}%`;
                 res();
             });
         });
@@ -60,9 +60,7 @@ async function convert(stream, totalSize, sampleNames, abortSignal) {
     let headers = null;
     let prevChromosome = "";
 
-    for await (const line of makeTextFileLineIterator(stream, handleProgress)) {
-        abortSignal.throwIfAborted();
-
+    for await (const line of makeTextFileLineIterator(stream, totalSize, handleProgress)) {
         // Skip comments
         if (line.startsWith("##")) continue;
 
@@ -72,7 +70,7 @@ async function convert(stream, totalSize, sampleNames, abortSignal) {
             const lastColumnIndex = columns.length - 1;
             const actualSampleCount = lastColumnIndex - columns.indexOf("FORMAT");
             if (sampleCount !== actualSampleCount)
-                throw new Error(`${sampleNames.length} samples expected but found ${actualSampleCount}.`);
+                throw new Error(`Found ${actualSampleCount} samples, but ${sampleCount} names were given.`);
 
             headers = columns;
             continue;
@@ -162,14 +160,22 @@ function downloadBlob(blob, filename){
     a.click() // Start downloading
 }
 
-async function* makeTextFileLineIterator(stream, onProgress) {
+async function* asyncRead(reader) {
+    while (true) {
+        const { done, value } = await reader.read();
+        yield value;
+        if (done) break;
+    }
+}
+
+async function* makeTextFileLineIterator(reader, totalSize, onProgress) {
     const utf8Decoder = new TextDecoder("utf-8");
     const decodeChunk = chunk =>
         chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
 
     let readSize = 0;
     let chunkText = "";
-    for await (const chunk of stream) {
+    for await (const chunk of asyncRead(reader)) {
         chunkText += decodeChunk(chunk);
 
         const re = /\r\n|\n|\r/gm;
@@ -180,9 +186,15 @@ async function* makeTextFileLineIterator(stream, onProgress) {
         }
         chunkText = chunkText.substring(startIndex);
 
-        await onProgress(readSize += chunk.length);
+        const chunkLength = chunk?.length ?? 0;
+        readSize += chunkLength;
+
+        await onProgress(readSize / totalSize);
     }
 
-    if (!chunkText) return;
-    yield chunkText;
+    if (readSize < totalSize)
+        throw new Error("Operation was canceled");
+
+    if (chunkText)
+        yield chunkText;
 }
