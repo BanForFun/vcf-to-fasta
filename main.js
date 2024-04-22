@@ -13,6 +13,7 @@ vcfForm.addEventListener('submit', e => {
     errorText.innerText = '';
 
     const sampleNames = namesInput.value.split(/\s/);
+
     const [vcfFile] = vcfInput.files;
     const reader = vcfFile.stream().getReader();
 
@@ -52,8 +53,9 @@ async function convert(stream, totalSize, sampleNames) {
     const sampleCount = sampleNames.length;
     const results = [];
 
-    for (let i = 0; i < sampleCount; i++)
-        results[i] = [];
+    sampleNames.push("ref");
+    for (let si = 0; si < sampleNames.length; si++)
+        results.push([]);
 
     let window = [];
     let windowEnd = 0;
@@ -93,13 +95,13 @@ async function convert(stream, totalSize, sampleNames) {
         if (position >= windowEnd) {
             for (const replacements of window) {
                 let maxReplacementLength = 0;
-                for (let si = 0; si < sampleCount; si++) {
+                for (let si = 0; si < replacements.length; si++) {
                     const {length} = replacements[si] ??= "N";
                     if (length > maxReplacementLength)
                         maxReplacementLength = length;
                 }
 
-                for (let si = 0; si < sampleCount; si++) {
+                for (let si = 0; si < replacements.length; si++) {
                     const replacement = replacements[si].padEnd(maxReplacementLength, "-");
                     results[si].push(replacement);
                 }
@@ -113,7 +115,7 @@ async function convert(stream, totalSize, sampleNames) {
         const reference = namedColumns["REF"];
         const minWindowEnd = position + reference.length;
         for (let pos = windowEnd; pos < minWindowEnd; pos++)
-            window.push(new Array(sampleCount));
+            window.push(new Array(sampleNames.length));
 
         // Update window end position
         if (minWindowEnd > windowEnd)
@@ -125,7 +127,7 @@ async function convert(stream, totalSize, sampleNames) {
 
         const alternates = namedColumns["ALT"].split(',');
         const samples = columns.slice(-sampleCount);
-        for (let si = 0; si < sampleCount; si++) {
+        for (let si = 0; si < samples.length; si++) {
             if (window[windowPos][si] != null) continue;
 
             const sample = samples[si];
@@ -144,10 +146,13 @@ async function convert(stream, totalSize, sampleNames) {
             for (let i = replacement.length; i < reference.length; i++)
                 window[windowPos + i][si] = '-';
         }
+
+        for (let i = 0; i < reference.length; i++)
+            window[windowPos + i][sampleCount] = reference[i];
     }
 
-    for (let i = 0; i < sampleCount; i++)
-        results[i] = `>${sampleNames[i]}\n${results[i].join("")}\n`;
+    for (let si = 0; si < sampleNames.length; si++)
+        results[si] = `>${sampleNames[si]}\n${results[si].join("")}\n`;
 
     return new Blob(results, { type: 'text/plain' });
 }
